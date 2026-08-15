@@ -3,6 +3,7 @@
 A [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) (DSH) web plugin that hides the composer's bottom status bar and shows the current session's per-model token usage and total cost (CNY + USD) inside the context-meter ring's click-open panel. 中文说明为主。
 
 点击输入框右下角的**上下文占用圆环**即可查看本次会话的详细信息，台前不再常驻显示任何统计文字。
+<img width="399" height="701" alt="image" src="https://github.com/user-attachments/assets/aac22415-0021-4ced-8feb-0bb13644ed13" />
 
 ## 功能
 
