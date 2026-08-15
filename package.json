@@ -1,0 +1,36 @@
+{
+  "name": "dsh-cost-meter",
+  "description": "DSH (DeepSeek Harness) web plugin: hides the composer's bottom status bar and shows the session's per-model token usage and total cost (CNY + USD) inside the context-ring panel, priced per https://api-docs.deepseek.com/zh-cn/quick_start/pricing",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Polar-Lighter/dsh-cost-meter.git"
+  },
+  "author": "Polar-Lighter <polar_lighter@qq.com>",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  },
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "token-usage",
+    "cost",
+    "pricing"
+  ],
+  "license": "MIT"
+}
