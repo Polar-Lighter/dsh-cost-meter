@@ -4,6 +4,10 @@ A [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) (DSH)
 
 点击输入框右下角的**上下文占用圆环**即可查看本次会话的详细信息，台前不再常驻显示任何统计文字。
 
+## 截图
+
+![效果截图](docs/screenshot.png)
+
 ## 功能
 
 1. **取消底部状态栏**：用 slot 遮蔽机制（`conversation.composer.dock` 的 `stats` 单元格，更低 `priority`）让原来的统计行不再渲染。
