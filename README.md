@@ -18,7 +18,7 @@
 
 点击输入框右下角的**上下文占用圆环**，即可在展开的面板中查看本次会话的完整详情——台前不再常驻任何统计文字。
 
-<img width="1600" alt="效果截图：上下文圆环面板内的会话详情" src="https://github.com/user-attachments/assets/ee7d1413-fc5f-45d1-b34f-622d09d9fd54" />
+<img width="2159" height="1382" alt="b16e4f43-8c4b-4cfc-99fb-3bfe57794501" src="https://github.com/user-attachments/assets/b55a0b77-34d4-4b15-af07-b42a2745f38e" />
 
 ---
 
