@@ -407,6 +407,20 @@ assert(formatClock(new Date("2026-08-15T14:32:00+08:00").getTime()) === "14:32",
     `balance must be the LAST section, got ${JSON.stringify(headers.map(textOf))}`);
   assert(textOf(el).includes("加载中…"), "balance section in loading state while the RPC settles");
   assert(rpcCalls.length === 0, "no RPC call before the effect runs (effect is stubbed in tests)");
+
+  // No two dividers may ever sit back-to-back (费用's closing divider must not
+  // double with 余额's leading divider).
+  const dividerClasses = [];
+  const walk = (node) => {
+    if (Array.isArray(node)) { for (const n of node) walk(n); return; }
+    if (node == null || typeof node !== "object") return;
+    dividerClasses.push(node.props && typeof node.props.className === "string" && node.props.className.split(" ").includes("dshcm-divider"));
+    const k = Array.isArray(node.children) ? node.children : [];
+    for (const n of k) walk(n);
+  };
+  walk(el);
+  const sequence = dividerClasses.map((d) => (d ? "#" : ".")).join("");
+  assert(!sequence.includes("##"), `adjacent dividers found in panel: ${sequence}`);
 }
 
 console.log("ALL TESTS PASSED — dsh-cost-meter client bundle OK");
