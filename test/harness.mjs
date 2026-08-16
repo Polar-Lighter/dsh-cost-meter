@@ -26,6 +26,8 @@ function requireShim(spec) {
     return {
       createElement: (type, props, ...children) => ({ type, props, children }),
       useMemo: (fn) => fn(),
+      useState: (initial) => [typeof initial === "function" ? initial() : initial, () => {}],
+      useEffect: () => {},
     };
   }
   throw new Error(`unexpected require: ${spec}`);
@@ -35,9 +37,9 @@ const code = readFileSync(bundlePath, "utf8");
 new Function(code)(); // execute bundle (registers factory, runs side effects)
 
 if (!loaded || typeof loaded.apply !== "function") throw new Error("bundle did not export apply");
-if (!Array.isArray(loaded.inject) || !loaded.inject.includes("slots")) throw new Error("inject must declare slots");
+if (!Array.isArray(loaded.inject) || !loaded.inject.includes("slots") || !loaded.inject.includes("connection")) throw new Error("inject must declare slots + connection");
 
-const { costOf, formatCost, formatUsd, priceOf, isBeijingPeak, PEAK_OFFPEAK_START_UTC, deriveStats, formatTokens } = loaded;
+const { costOf, formatCost, formatUsd, priceOf, isBeijingPeak, PEAK_OFFPEAK_START_UTC, deriveStats, formatTokens, BalanceBlock, formatAmount, formatClock, currencySymbol } = loaded;
 const assert = (cond, msg) => { if (!cond) { console.error("FAIL:", msg); process.exit(1); } };
 
 // Fixed evaluation times (all Beijing = UTC+8):
@@ -277,6 +279,134 @@ assert(formatTokens(517) === "517" && formatTokens(12200) === "12.2K" && formatT
   const tip = costValues[0].props.title;
   assert(tip.includes("deepseek-v4-flash") && tip.includes("deepseek-v4-pro"), "summed tooltip should name both models");
   assert(tip.includes("合计 ") && tip.includes("元/百万tok"), "summed tooltip should carry 合计 + rates");
+}
+
+// ── balance formatting helpers ──────────────────────────────────────────────
+assert(currencySymbol("CNY") === "￥" && currencySymbol("USD") === "$" && currencySymbol("EUR") === "EUR ", "currencySymbol");
+assert(formatAmount("110.00") === "110.00", `formatAmount("110.00") → ${formatAmount("110.00")}`);
+assert(formatAmount(12345.67) === "12,345.67", `formatAmount(12345.67) → ${formatAmount(12345.67)}`);
+assert(formatAmount("0") === "0.00", "formatAmount zero");
+assert(formatClock(new Date("2026-08-15T14:32:00+08:00").getTime()) === "14:32", "formatClock");
+
+// ── BalanceBlock rendering ─────────────────────────────────────────────────
+{
+  const el = BalanceBlock({
+    state: {
+      status: "ok",
+      value: {
+        isAvailable: true,
+        balanceInfos: [
+          { currency: "CNY", total: "110.00", granted: "10.00", toppedUp: "100.00" },
+          { currency: "USD", total: "15.50", granted: "0.00", toppedUp: "15.50" },
+        ],
+      },
+      fetchedAt: new Date("2026-08-15T14:32:00+08:00").getTime(),
+    },
+    onRefresh: () => {},
+  });
+  const textOf = (node) => {
+    if (Array.isArray(node)) return node.map(textOf).join("");
+    if (node == null || typeof node === "string" || typeof node === "number") return String(node ?? "");
+    const k = Array.isArray(node.children) ? node.children : [];
+    return k.map(textOf).join("");
+  };
+  const kids = (Array.isArray(el.children) ? el.children : [el.children]).flat();
+  const byClass = (cls) => kids.filter((k) => k && k.props && typeof k.props.className === "string" && k.props.className.split(" ").includes(cls));
+  const textOfClass = (cls) => byClass(cls).map(textOf);
+
+  assert(el.type === "div" && el.props.className === "dshcm-balance", "balance root class");
+  assert(byClass("dshcm-divider").length === 3, `balance dividers = ${byClass("dshcm-divider").length}`);
+  assert(JSON.stringify(textOfClass("dshcm-detailTitle")) === JSON.stringify(["余额"]), "balance header");
+  assert(JSON.stringify(textOfClass("dshcm-modelName")) === JSON.stringify(["CNY", "USD"]), "one block per currency");
+  assert(JSON.stringify(textOfClass("dshcm-balanceValue")) === JSON.stringify(["￥110.00", "$15.50"]), "balance values");
+  const rows = textOfClass("dshcm-detailRow");
+  assert(JSON.stringify(rows) === JSON.stringify([
+    "充值 ￥100.00 · 赠送 ￥10.00",
+    "充值 $15.50 · 赠送 $0.00",
+    "更新于 14:32 · 点击刷新",
+  ]), `balance rows: ${JSON.stringify(rows)}`);
+  const refreshRow = byClass("dshcm-clickable").find((r) => typeof r.props.onClick === "function");
+  assert(refreshRow !== void 0, "refresh row must be clickable");
+}
+
+// ── BalanceBlock states ─────────────────────────────────────────────────────
+{
+  assert(BalanceBlock({ state: { status: "hidden" } }) === null, "hidden → null");
+  const loading = BalanceBlock({ state: { status: "loading" }, onRefresh: () => {} });
+  const textOf = (node) => {
+    if (Array.isArray(node)) return node.map(textOf).join("");
+    if (node == null || typeof node === "string" || typeof node === "number") return String(node ?? "");
+    const k = Array.isArray(node.children) ? node.children : [];
+    return k.map(textOf).join("");
+  };
+  const loadingKids = (Array.isArray(loading.children) ? loading.children : [loading.children]).flat();
+  const loadingRow = loadingKids.find((k) => k && k.props && k.props.className === "dshcm-detailRow");
+  assert(loadingRow && textOf(loadingRow) === "加载中…", "loading row");
+
+  const err = BalanceBlock({ state: { status: "error", error: "HTTP 401 Unauthorized" }, onRefresh: () => {} });
+  const errKids = (Array.isArray(err.children) ? err.children : [err.children]).flat();
+  const errRow = errKids.find((k) => k && k.props && typeof k.props.className === "string" && k.props.className.split(" ").includes("dshcm-clickable"));
+  assert(errRow && textOf(errRow) === "余额获取失败 · 点击重试", `error row: ${errRow && textOf(errRow)}`);
+  assert(errRow.props.title === "HTTP 401 Unauthorized" && typeof errRow.props.onClick === "function", "error row carries message + retry");
+
+  const unavailable = BalanceBlock({
+    state: { status: "ok", value: { isAvailable: false, balanceInfos: [{ currency: "CNY", total: "0.00", granted: "0.00", toppedUp: "0.00" }] }, fetchedAt: Date.now() },
+    onRefresh: () => {},
+  });
+  const uaKids = (Array.isArray(unavailable.children) ? unavailable.children : [unavailable.children]).flat();
+  const uaText = uaKids.map(textOf).join("");
+  assert(uaText.includes("⚠ 账户当前不可用"), "is_available=false must surface a warning row");
+}
+
+// ── DetailPanel with a live connection: balance section renders below 费用 ──
+{
+  const registers = [];
+  const slots = {
+    inject(key, cb) { cb(); },
+    register(opts, component) { registers.push({ opts, component }); return () => {}; },
+  };
+  const rpcCalls = [];
+  loaded.apply({
+    slots,
+    connection: {
+      rpc: {
+        call: async (channel, endpoint, payload) => {
+          rpcCalls.push({ channel, endpoint });
+          return { ok: true, value: { status: "ok", fetchedAt: Date.now(), isAvailable: true, balanceInfos: [{ currency: "CNY", total: "88.00", granted: "8.00", toppedUp: "80.00" }] } };
+        },
+      },
+    },
+  });
+  const detail = registers.find((r) => r.opts.name === "conversation.context.detail").component;
+  const el = detail({
+    useProjection: (key) => {
+      if (key === "sessionStats") return { turns: 3, steps: 5, llmMs: 150_000, toolMs: 20_000, ttftMs: 1_200, ttftSteps: 4, decodeMs: 30_000, decodeTokens: 1500 };
+      if (key === "tokenUsage") return { uncachedInputTokens: 500_000, cacheReadTokens: 200_000, cacheWriteTokens: 100_000, outputTokens: 300_000 };
+      return undefined;
+    },
+    useSession: () => [
+      { kind: "assistant", turn: 1, step: 1, provenance: { provider: "deepseek-official", model: "deepseek-v4-pro" }, timing: null, usage: null },
+    ],
+  });
+  const textOf = (node) => {
+    if (Array.isArray(node)) return node.map(textOf).join("");
+    if (node == null || typeof node === "string" || typeof node === "number") return String(node ?? "");
+    const k = Array.isArray(node.children) ? node.children : [];
+    return k.map(textOf).join("");
+  };
+  const collectByClass = (node, cls, out) => {
+    if (Array.isArray(node)) { for (const n of node) collectByClass(n, cls, out); return; }
+    if (node == null || typeof node !== "object") return;
+    if (node.props && typeof node.props.className === "string" && node.props.className.split(" ").includes(cls)) out.push(node);
+    const k = Array.isArray(node.children) ? node.children : [];
+    for (const n of k) collectByClass(n, cls, out);
+  };
+  const headers = [];
+  collectByClass(el, "dshcm-detailTitle", headers);
+  assert(JSON.stringify(headers.map(textOf)) === JSON.stringify(["会话统计", "Token 用量", "费用", "余额"]),
+    `balance must be the LAST section, got ${JSON.stringify(headers.map(textOf))}`);
+  assert(textOf(el).includes("加载中…"), "balance section in loading state while the RPC settles");
+  assert(rpcCalls.length === 0, "no RPC call before the effect runs (effect is stubbed in tests)");
 }
 
 console.log("ALL TESTS PASSED — dsh-cost-meter client bundle OK");

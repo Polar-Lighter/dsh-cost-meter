@@ -1,6 +1,6 @@
 # dsh-cost-meter
 
-A [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) (DSH) web plugin that hides the composer's bottom status bar and shows the current session's per-model token usage and total cost (CNY + USD) inside the context-meter ring's click-open panel. 中文说明为主。
+A [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) (DSH) web plugin that hides the composer's bottom status bar and shows the current session's per-model token usage, total cost (CNY + USD), and the **account balance** inside the context-meter ring's click-open panel. 中文说明为主。
 
 点击输入框右下角的**上下文占用圆环**即可查看本次会话的详细信息，台前不再常驻显示任何统计文字。
 
@@ -20,6 +20,17 @@ A [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) (DSH)
      （模型名 + 命中 / 未命中 / 写入 / 输出 / 缓存命中率）；
    - **费用**：全部模型的总和（人民币 + 美元，金额字体略大），悬停查看每个模型各自的费用与费率。
    - 计费规则与官方一致：缓存写入按缓存未命中（原价输入）计费，缓存读取按缓存命中价计费，reasoning token 已包含在输出 token 内。
+
+3. **账户余额**（面板最底部，费用下方）：打开圆环面板时通过 host 侧的 RPC 端点
+   （channel `/rpc` → endpoint `cost-meter/balance`）调用官方查询余额接口
+   [GET /user/balance](https://api-docs.deepseek.com/zh-cn/api/get-user-balance/)，
+   展示各币种（CNY / USD）的总余额（含充值与赠送），账户不可用时给出提示。
+   - **API Key 不会离开 host**：浏览器端只拿到查询结果，密钥由 host 进程持有；
+   - Key 与端点解析方式与 `llm-deepseek` 一致：优先 `llm-deepseek` 设置节
+     （`apiKeyEnv` / `baseURL`），其次 `$DEEPSEEK_BASE_URL`，最后默认
+     `DEEPSEEK_API_KEY` / `https://api.deepseek.com`；
+   - 打开面板时自动刷新（60 秒内使用缓存），点击「更新于 … · 点击刷新」可手动刷新；
+   - 未配置 API Key 时该区块自动隐藏。
 
 ## 对已安装 bundle 的必要补丁（应用更新后需重打）
 
@@ -93,8 +104,9 @@ ContextMeter 是 `ui-conversation` 内联渲染的组件，不是插槽。为了
 ## 测试
 
 ```bash
-node test/harness.mjs            # 客户端 bundle：计价、模板渲染、多模型展示
+node test/harness.mjs            # 客户端 bundle：计价、模板渲染、多模型展示、余额区块
 node test/projection.test.mjs    # host 侧 tokenUsageByModel 折叠单测
+node test/balance.test.mjs       # host 侧余额模块（Key 解析、接口折叠、RPC 注册）单测
 ```
 
 ## 卸载
